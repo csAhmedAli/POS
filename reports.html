@@ -27,41 +27,24 @@
                     <div id="total-orders" class="value">0</div>
                 </div>
                 <div class="summary-card">
-                    <div class="label">Total Revenue</div>
+                    <div class="label">Total price</div>
                     <div id="total-revenue" class="value">Rs 0.00</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Total Cost</div>
-                    <div id="total-cost" class="value">Rs 0.00</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Net Profit</div>
-                    <div id="net-profit" class="value">Rs 0.00</div>
                 </div>
             </div>
 
-            <div class="summary-cards" style="grid-template-columns: repeat(2,1fr); max-width: 600px;">
-                <div class="summary-card">
-                    <div class="label">Best Selling</div>
-                    <div id="best-selling" class="value">-</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Worst Selling</div>
-                    <div id="worst-selling" class="value">-</div>
-                </div>
-            </div>
         </section>
 
         <!-- Product Wise Sales -->
         <section>
-            <h2 class="section-header">Product Wise Sales</h2>
+            <div style="margin-bottom: 0.75rem;">
+            </div>
             <table class="report-table">
                 <thead>
                     <tr>
                         <th>Product Name</th>
                         <th>Qty Sold</th>
-                        <th>Total Revenue</th>
-                        <th>Total Profit</th>
+                        <th>Unit Price</th>
+                        <th>Total price</th>
                     </tr>
                 </thead>
                 <tbody id="product-sales-body">
@@ -72,21 +55,7 @@
 
         <!-- Historical Reports -->
         <section>
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                <h2 class="section-header" style="margin-bottom:0; border-bottom:none;">Historical Reports (Past Snapshots)</h2>
-                <button id="btn-export-excel" style="
-                    background: #1a7a4a;
-                    color: white;
-                    border: none;
-                    padding: 0.55rem 1.2rem;
-                    border-radius: 6px;
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.4rem;
-                ">📊 Export to Excel</button>
+            <div style="margin-bottom: 0.75rem;">
             </div>
             <p><small>Click any row to view detailed sales for that day.</small></p>
 
@@ -95,9 +64,8 @@
                     <tr>
                         <th>Date</th>
                         <th>Orders</th>
-                        <th>Revenue</th>
-                        <th>Cost</th>
-                        <th>Net Profit</th>
+                        <th>Total price</th>
+                        <th style="width: 100px;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="historical-reports-body" style="cursor: pointer;">
@@ -125,9 +93,7 @@
                         <th>Product</th>
                         <th>Qty</th>
                         <th>Unit Price</th>
-                        <th>Unit Cost</th>
-                        <th>Revenue</th>
-                        <th>Line Profit</th>
+                        <th>Total price</th>
                     </tr>
                 </thead>
                 <tbody id="details-body">
@@ -151,30 +117,14 @@
         async function loadReports() {
             const summary    = await window.api.getSummary();
             const productSales = await window.api.getProductWiseSales();
-            const bestWorst  = await window.api.getBestWorstSelling();
             const historical = await window.api.getHistoricalReports();
 
             // --- Summary Cards ---
             const totalOrders  = summary.total_orders  || 0;
             const totalRevenue = summary.total_revenue || 0;
-            const totalCost    = summary.total_cost    || 0;
-            const netProfit    = totalRevenue - totalCost;
 
             document.getElementById('total-orders').innerText  = totalOrders;
             document.getElementById('total-revenue').innerText = fmt(totalRevenue);
-            document.getElementById('total-cost').innerText    = fmt(totalCost);
-
-            const profitEl = document.getElementById('net-profit');
-            profitEl.innerText = fmt(netProfit);
-            profitEl.className = 'value ' + profitClass(netProfit);
-
-            // --- Best / Worst ---
-            document.getElementById('best-selling').innerText  = bestWorst.best
-                ? `${bestWorst.best.product_name} (${bestWorst.best.total_qty})`
-                : '-';
-            document.getElementById('worst-selling').innerText = bestWorst.worst
-                ? `${bestWorst.worst.product_name} (${bestWorst.worst.total_qty})`
-                : '-';
 
             // --- Product Wise Sales ---
             const tbodyProd = document.getElementById('product-sales-body');
@@ -183,17 +133,61 @@
             if (!productSales || productSales.length === 0) {
                 tbodyProd.innerHTML = `<tr class="no-data-row"><td colspan="4">No data available</td></tr>`;
             } else {
+                // Group by category
+                const catGroups = new Map();
                 productSales.forEach(sale => {
-                    const tr = document.createElement('tr');
-                    const pClass = profitClass(sale.total_profit);
-                    tr.innerHTML = `
-                        <td>${sale.product_name}</td>
-                        <td>${sale.total_quantity}</td>
-                        <td>${fmt(sale.total_revenue)}</td>
-                        <td class="${pClass}">${fmt(sale.total_profit)}</td>
-                    `;
-                    tbodyProd.appendChild(tr);
+                    const cat = sale.category || 'Uncategorized';
+                    if (!catGroups.has(cat)) catGroups.set(cat, { name: cat, items: [], total: 0 });
+                    catGroups.get(cat).items.push(sale);
+                    catGroups.get(cat).total += sale.total_revenue;
                 });
+
+                let overallGrandTotal = 0;
+                catGroups.forEach(group => {
+                    overallGrandTotal += group.total;
+                    
+                    // Category Header
+                    const headTr = document.createElement('tr');
+                    headTr.style.background = '#f9f9f9';
+                    headTr.style.fontWeight = 'bold';
+                    headTr.innerHTML = `<td colspan="4" style="color: var(--primary); padding: 10px;">📂 ${group.name.toUpperCase()}</td>`;
+                    tbodyProd.appendChild(headTr);
+
+                    // Product Rows
+                    group.items.forEach(sale => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="padding-left: 20px;">${sale.product_name}</td>
+                            <td>${sale.total_quantity}</td>
+                            <td>${fmt(sale.unit_price)}</td>
+                            <td>${fmt(sale.total_revenue)}</td>
+                        `;
+                        tbodyProd.appendChild(tr);
+                    });
+
+                    // Category Total
+                    const totalTr = document.createElement('tr');
+                    totalTr.style.background = '#fff';
+                    totalTr.style.fontSize = '0.9rem';
+                    totalTr.style.color = '#555';
+                    totalTr.innerHTML = `
+                        <td colspan="3" style="text-align: right; font-weight: bold; padding: 8px;">Total ${group.name}:</td>
+                        <td style="font-weight: bold; padding: 8px;">${fmt(group.total)}</td>
+                    `;
+                    tbodyProd.appendChild(totalTr);
+                });
+
+                // Final Overall Total
+                const finalTr = document.createElement('tr');
+                finalTr.style.background = '#2c3e50';
+                finalTr.style.color = 'white';
+                finalTr.style.fontWeight = 'bold';
+                finalTr.style.fontSize = '1.1rem';
+                finalTr.innerHTML = `
+                    <td colspan="3" style="text-align: right; padding: 12px;">OVERALL TOTAL SALES:</td>
+                    <td style="padding: 12px;">${fmt(overallGrandTotal)}</td>
+                `;
+                tbodyProd.appendChild(finalTr);
             }
 
             // --- Historical Reports ---
@@ -205,15 +199,43 @@
             } else {
                 historical.forEach(rep => {
                     const tr = document.createElement('tr');
-                    const pClass = profitClass(rep.net_profit);
                     tr.innerHTML = `
                         <td>${rep.date}</td>
                         <td>${rep.total_orders}</td>
                         <td>${fmt(rep.total_revenue)}</td>
-                        <td>${fmt(rep.total_cost)}</td>
-                        <td class="${pClass}">${fmt(rep.net_profit)}</td>
+                        <td>
+                            <button class="row-export-btn" style="
+                                background: #2c3e50;
+                                color: white;
+                                border: none;
+                                padding: 4px 8px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 0.75rem;
+                            ">Export</button>
+                        </td>
                     `;
-                    tr.onclick = () => showDetails(rep.date);
+                    // Clicking the row (except the button) shows details
+                    tr.onclick = (e) => {
+                        if (e.target.classList.contains('row-export-btn')) return;
+                        showDetails(rep.date);
+                    };
+
+                    // Handle row export button
+                    tr.querySelector('.row-export-btn').onclick = async (e) => {
+                        e.stopPropagation();
+                        const btn = e.target;
+                        btn.textContent = '...';
+                        btn.disabled = true;
+                        try {
+                            const details = await window.api.getDetailedHistory(rep.date);
+                            const res = await window.api.exportSingleDayReport(rep.date, details);
+                            if (res.success) alert(`✅ Exported: ${res.filePath}`);
+                        } finally {
+                            btn.textContent = 'Export';
+                            btn.disabled = false;
+                        }
+                    };
                     tbodyHist.appendChild(tr);
                 });
             }
@@ -233,67 +255,61 @@
                 return;
             }
 
-            // Group items by order_id (preserving order)
-            const groups = new Map();
+            // Group items by category
+            const catGroups = new Map();
             items.forEach(item => {
-                if (!groups.has(item.order_id)) {
-                    groups.set(item.order_id, {
-                        order_id: item.order_id,
-                        token_number: item.token_number,
-                        datetime: item.datetime,
-                        items: []
-                    });
+                const cat = item.category || 'Uncategorized';
+                if (!catGroups.has(cat)) {
+                    catGroups.set(cat, { name: cat, items: [], total: 0 });
                 }
-                groups.get(item.order_id).items.push(item);
+                catGroups.get(cat).items.push(item);
+                catGroups.get(cat).total += (item.line_total || 0);
             });
 
             // Render each group
-            groups.forEach(group => {
-                // Calculate group-level totals
-                const grpRevenue = group.items.reduce((s, i) => s + (i.line_total || 0), 0);
-                const grpCost    = group.items.reduce((s, i) => s + (i.cost * i.quantity || 0), 0);
-                const grpProfit  = grpRevenue - grpCost;
-                const timeStr    = new Date(group.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const pClass     = profitClass(grpProfit);
+            let grandTotal = 0;
+            catGroups.forEach(group => {
+                grandTotal += group.total;
 
-                // Group header row
+                // Category Header Row
                 const headerTr = document.createElement('tr');
-                headerTr.className = 'order-group-header';
-                headerTr.innerHTML = `
-                    <td colspan="6">
-                        <span style="background: #2c3e50; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${(group.items[0].order_type || 'Unknown').toUpperCase()}</span>
-
-                        &nbsp;&nbsp;
-                        Order&nbsp;#${group.token_number}
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        ⏰ ${timeStr}
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        Revenue: ${fmt(grpRevenue)}
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        Cost: ${fmt(grpCost)}
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        Profit: <span class="${grpProfit >= 0 ? 'profit-positive' : 'profit-negative'}" style="color:${grpProfit >= 0 ? '#2ecc71' : '#e74c3c'}">${fmt(grpProfit)}</span>
-                    </td>
-
-                `;
+                headerTr.style.background = '#f9f9f9';
+                headerTr.style.fontWeight = 'bold';
+                headerTr.innerHTML = `<td colspan="4" style="color: var(--primary); padding: 10px;">📂 ${group.name.toUpperCase()}</td>`;
                 tbody.appendChild(headerTr);
 
-                // Item rows
+                // Product rows
                 group.items.forEach(item => {
                     const itemTr = document.createElement('tr');
-                    itemTr.className = 'order-group-row';
-                    const lp = item.line_profit || 0;
                     itemTr.innerHTML = `
-                        <td>${item.product_name}</td>
+                        <td style="padding-left: 20px;">${item.product_name}</td>
                         <td>${item.quantity}</td>
                         <td>${fmt(item.price)}</td>
-                        <td>${fmt(item.cost)}</td>
                         <td>${fmt(item.line_total)}</td>
-                        <td class="${profitClass(lp)}">${fmt(lp)}</td>
                     `;
                     tbody.appendChild(itemTr);
                 });
+
+                // Category Total row
+                const totalTr = document.createElement('tr');
+                totalTr.style.fontSize = '0.9rem';
+                totalTr.innerHTML = `
+                    <td colspan="3" style="text-align: right; font-weight: bold; padding: 8px;">Total ${group.name}:</td>
+                    <td style="font-weight: bold; padding: 8px;">${fmt(group.total)}</td>
+                `;
+                tbody.appendChild(totalTr);
             });
+
+            // Add Grand Total Footer
+            const footerTr = document.createElement('tr');
+            footerTr.style.background = '#f1f1f1';
+            footerTr.style.fontWeight = 'bold';
+            footerTr.style.fontSize = '1.2rem';
+            footerTr.innerHTML = `
+                <td colspan="3" style="text-align: right; padding: 1rem;">OVERALL DAY TOTAL:</td>
+                <td style="padding: 1rem;">${fmt(grandTotal)}</td>
+            `;
+            tbody.appendChild(footerTr);
 
             document.getElementById('details-overlay').classList.remove('hidden');
         }
@@ -301,28 +317,6 @@
         // ── Events ───────────────────────────────────────────
         document.getElementById('btn-close-details').addEventListener('click', () => {
             document.getElementById('details-overlay').classList.add('hidden');
-        });
-
-        document.getElementById('btn-export-excel').addEventListener('click', async () => {
-            const historical = await window.api.getHistoricalReports();
-            if (!historical || historical.length === 0) {
-                alert('No historical reports to export. End a day first to save a snapshot.');
-                return;
-            }
-            const btn = document.getElementById('btn-export-excel');
-            btn.textContent = '⏳ Exporting...';
-            btn.disabled = true;
-            try {
-                const result = await window.api.exportDayReport(historical);
-                if (result.success) {
-                    alert(`✅ Exported successfully!\n\nSaved to:\n${result.filePath}`);
-                } else if (result.reason !== 'canceled') {
-                    alert(`❌ Export failed: ${result.reason}`);
-                }
-            } finally {
-                btn.innerHTML = '📊 Export to Excel';
-                btn.disabled = false;
-            }
         });
 
         document.getElementById('nav-pos').addEventListener('click',      () => window.api.navigateTo('index.html'));

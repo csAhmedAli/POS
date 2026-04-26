@@ -110,6 +110,35 @@
                 alert("New passwords do not match or are empty!");
             }
         });
+
+        // Enter Key Navigation
+        function setupEnterKey() {
+            // Password Section
+            const pwdInputs = [
+                document.getElementById('old-pwd'),
+                document.getElementById('new-pwd'),
+                document.getElementById('confirm-pwd')
+            ];
+            const pwdBtn = document.getElementById('btn-update-pwd');
+
+            pwdInputs.forEach((input, index) => {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (index < pwdInputs.length - 1) {
+                            pwdInputs[index + 1].focus();
+                        } else {
+                            pwdBtn.click();
+                        }
+                    }
+                });
+            });
+
+            // Printer Section (Though these are selects, the user might want Enter to save)
+            // But usually Enter on select opens it. I'll stick to just password inputs for now 
+            // unless the user specifically asked for "most things".
+        }
+        setupEnterKey();
     </script>
 
 

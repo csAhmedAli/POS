@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('api', {
 
     // Export
     exportDayReport: (reports) => ipcRenderer.invoke('export:dayReport', reports),
+    exportOverallSales: (salesData) => ipcRenderer.invoke('export:overallSales', salesData),
+    exportSingleDayReport: (date, items) => ipcRenderer.invoke('export:singleDayReport', date, items),
 
     // Navigation
     navigateTo: (page) => ipcRenderer.send('navigate', page)

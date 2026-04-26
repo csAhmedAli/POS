@@ -56,9 +56,19 @@ function initDB() {
             price REAL NOT NULL,
             cost REAL NOT NULL,
             line_total REAL NOT NULL,
+            category TEXT,
             FOREIGN KEY (order_id) REFERENCES orders(id)
         )
     `).run();
+
+    // Migration: Ensure category exists in order_items
+    try {
+        db.prepare("ALTER TABLE order_items ADD COLUMN category TEXT").run();
+    } catch (e) {
+        if (!e.message.includes('duplicate column name')) {
+            console.error("Migration error (category):", e.message);
+        }
+    }
 
     // Settings Table
     db.prepare(`
@@ -141,7 +151,7 @@ module.exports = {
     createOrder: (orderData, items) => {
         const insertOrder = db.prepare('INSERT INTO orders (token_number, datetime, total_amount, order_type) VALUES (?, ?, ?, ?)');
 
-        const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, product_name, quantity, price, cost, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, product_name, quantity, price, cost, line_total, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
         // Ensure datetime is ISO for better querying
         const isoDate = new Date().toISOString();
@@ -151,7 +161,7 @@ module.exports = {
 
             const orderId = info.lastInsertRowid;
             for (const item of items) {
-                insertItem.run(orderId, item.product_id, item.product_name, item.quantity, item.price, item.cost, item.line_total);
+                insertItem.run(orderId, item.product_id, item.product_name, item.quantity, item.price, item.cost, item.line_total, item.category);
             }
             return orderId;
         });
@@ -173,9 +183,8 @@ module.exports = {
                 oi.product_name, 
                 oi.quantity, 
                 oi.price, 
-                oi.cost, 
                 oi.line_total,
-                COALESCE((oi.price - oi.cost) * oi.quantity, 0) as line_profit
+                oi.category
             FROM orders o
             JOIN order_items oi ON o.id = oi.order_id
             WHERE o.datetime LIKE ?
@@ -185,13 +194,14 @@ module.exports = {
     getProductWiseSales: () => {
         return db.prepare(`
             SELECT 
+                category,
                 product_name,
+                price as unit_price,
                 COALESCE(SUM(quantity), 0) as total_quantity,
-                COALESCE(SUM(line_total), 0) as total_revenue,
-                COALESCE(SUM((price - cost) * quantity), 0) as total_profit
+                COALESCE(SUM(line_total), 0) as total_revenue
             FROM order_items
-            GROUP BY product_name
-            ORDER BY total_quantity DESC
+            GROUP BY category, product_name, price
+            ORDER BY category ASC, total_quantity DESC
         `).all();
     },
     getSummary: () => {

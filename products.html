@@ -24,9 +24,14 @@
             <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
                 <input type="hidden" id="prod-id">
                 <input type="text" id="prod-name" placeholder="Product Name" style="flex: 1; min-width: 200px;">
-                <input type="text" id="prod-category" placeholder="Category (e.g. Burger)" style="flex: 1; min-width: 150px;">
+                <select id="prod-category" style="flex: 1; min-width: 150px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="" disabled selected>Select Category</option>
+                    <option value="Fast Food">Fast Food</option>
+                    <option value="Pizza">Pizza</option>
+                    <option value="BBQ">BBQ</option>
+                    <option value="Cold Drinks">Cold Drinks</option>
+                </select>
                 <input type="number" id="prod-price" placeholder="Price" style="width: 100px;">
-                <input type="number" id="prod-cost" placeholder="Cost" style="width: 100px;">
                 <button id="btn-save-prod" style="padding: 0.8rem 2rem; background: var(--accent);">Save Product</button>
                 <button id="btn-cancel-edit" class="hidden" style="padding: 0.8rem 2rem; background: var(--danger);">Cancel</button>
             </div>
@@ -39,7 +44,6 @@
                     <th>Name</th>
                     <th>Category</th>
                     <th>Price</th>
-                    <th>Cost</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -64,9 +68,8 @@
                     <td>${p.name}</td>
                     <td>${p.category}</td>
                     <td>Rs ${p.price.toFixed(2)}</td>
-                    <td>Rs ${p.cost.toFixed(2)}</td>
                     <td>
-                        <button onclick="editProduct(${p.id}, '${p.name}', '${p.category}', ${p.price}, ${p.cost})" style="background: var(--primary); color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Edit</button>
+                        <button onclick="editProduct(${p.id}, '${p.name}', '${p.category}', ${p.price})" style="background: var(--primary); color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Edit</button>
                         <button onclick="deleteProduct(${p.id})" style="background: var(--danger); color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
                     </td>
                 `;
@@ -78,14 +81,13 @@
             const name = document.getElementById('prod-name').value;
             const category = document.getElementById('prod-category').value;
             const price = parseFloat(document.getElementById('prod-price').value);
-            const cost = parseFloat(document.getElementById('prod-cost').value);
 
-            if (!name || !category || isNaN(price) || isNaN(cost)) {
+            if (!name || !category || isNaN(price)) {
                 alert("Please fill all fields correctly");
                 return;
             }
 
-            const product = { name, category, price, cost };
+            const product = { name, category, price, cost: 0 };
             
             if (editingId) {
                 product.id = editingId;
@@ -101,12 +103,11 @@
             loadProducts();
         });
 
-        window.editProduct = (id, name, category, price, cost) => {
+        window.editProduct = (id, name, category, price) => {
             editingId = id;
             document.getElementById('prod-name').value = name;
             document.getElementById('prod-category').value = category;
             document.getElementById('prod-price').value = price;
-            document.getElementById('prod-cost').value = cost;
             document.getElementById('btn-cancel-edit').classList.remove('hidden');
             document.getElementById('btn-save-prod').innerText = "Update Product";
         };
@@ -123,12 +124,35 @@
             document.getElementById('prod-name').value = '';
             document.getElementById('prod-category').value = '';
             document.getElementById('prod-price').value = '';
-            document.getElementById('prod-cost').value = '';
             document.getElementById('btn-cancel-edit').classList.add('hidden');
             document.getElementById('btn-save-prod').innerText = "Save Product";
         }
 
         document.getElementById('btn-cancel-edit').addEventListener('click', clearForm);
+
+        // Enter Key Navigation
+        function setupEnterKeyNavigation() {
+            const inputs = [
+                document.getElementById('prod-name'),
+                document.getElementById('prod-category'),
+                document.getElementById('prod-price'),
+            ];
+            const submitBtn = document.getElementById('btn-save-prod');
+
+            inputs.forEach((input, index) => {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (index < inputs.length - 1) {
+                            inputs[index + 1].focus();
+                        } else {
+                            submitBtn.click();
+                        }
+                    }
+                });
+            });
+        }
+        setupEnterKeyNavigation();
 
         // Navigation
         document.getElementById('nav-pos').addEventListener('click', () => window.api.navigateTo('index.html'));

@@ -94,7 +94,8 @@ window.addToCart = (productId) => {
             price: product.price,
             cost: product.cost,
             quantity: 1,
-            line_total: product.price
+            line_total: product.price,
+            category: product.category
         });
     }
     updateCart();
@@ -255,6 +256,29 @@ function generateKitchenSlip(token, date, items, orderType) {
 
 
 
+// Helper for Enter Key Navigation
+function setupEnterKeyNavigation(containerId, submitBtnId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const inputs = Array.from(container.querySelectorAll('input'));
+    const submitBtn = document.getElementById(submitBtnId);
+
+    inputs.forEach((input, index) => {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                } else if (submitBtn) {
+                    submitBtn.click();
+                }
+            }
+        });
+    });
+}
+
+
 // Auth Handlers
 document.getElementById('btn-save-setup').addEventListener('click', async () => {
     const p1 = document.getElementById('setup-pwd').value;
@@ -322,5 +346,9 @@ document.getElementById('nav-reports').addEventListener('click', () => window.ap
 document.getElementById('nav-settings').addEventListener('click', () => window.api.navigateTo('settings.html'));
 document.getElementById('nav-pos').addEventListener('click', () => window.api.navigateTo('index.html'));
 document.getElementById('nav-products').addEventListener('click', () => window.api.navigateTo('products.html'));
+
+// Setup Enter Key Shortcuts
+setupEnterKeyNavigation('setup-overlay', 'btn-save-setup');
+setupEnterKeyNavigation('login-overlay', 'btn-login');
 
 init();
