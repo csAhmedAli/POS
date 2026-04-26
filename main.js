@@ -148,6 +148,20 @@ ipcMain.on('print-dual', (event, { customerContent, kitchenContent, customerPrin
     }
 });
 
+ipcMain.on('print-single', (event, { content, printer }) => {
+    if (!content) return;
+    let win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
+    win.webContents.on('did-finish-load', () => {
+        const options = { silent: true, printBackground: true };
+        if (printer) options.deviceName = printer;
+        win.webContents.print(options, (success, err) => {
+            if (!success) console.error('Print-single failed:', err);
+            win.close();
+        });
+    });
+});
+
 ipcMain.on('print', (event, content) => {
 
     let workerWindow = new BrowserWindow({

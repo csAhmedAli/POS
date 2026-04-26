@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
     // Printing
     print: (content) => ipcRenderer.send('print', content),
     printDual: (payload) => ipcRenderer.send('print-dual', payload),
+    printSingle: (payload) => ipcRenderer.send('print-single', payload),
     getPrinters: () => ipcRenderer.invoke('app:getPrinters'),
 
     // Settings

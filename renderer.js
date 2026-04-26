@@ -165,17 +165,29 @@ async function completeOrder(orderType) {
         const customerPrinter = await window.api.getSetting('printer_customer');
         const kitchenPrinter = await window.api.getSetting('printer_chef');
 
-        // Prepare Printing Content
+        // Filter Items by category for routing
+        const pizzaItems = cart.filter(item => item.category === 'Pizza');
+        const nonPizzaItems = cart.filter(item => ['BBQ', 'Cold Drinks', 'Fast Food'].includes(item.category));
+
+        // 1. Print Full Customer slip (Printer 1) + Pizza slip (Printer 2) if exists
         const customerSlip = generateCustomerSlip(tokenNumber, datetime, cart, total, orderType);
-        const kitchenSlip = generateKitchenSlip(tokenNumber, datetime, cart, orderType);
-        
-        // Print Dual
+        const pizzaSlip = pizzaItems.length > 0 ? generateKitchenSlip(tokenNumber, datetime, pizzaItems, orderType) : null;
+
         window.api.printDual({
             customerContent: customerSlip,
             customerPrinter: customerPrinter,
-            kitchenContent: kitchenSlip,
+            kitchenContent: pizzaSlip,
             kitchenPrinter: kitchenPrinter
         });
+
+        // 2. Print Non-Pizza kitchen slip (Printer 1) if items exist
+        if (nonPizzaItems.length > 0) {
+            const nonPizzaSlip = generateKitchenSlip(tokenNumber, datetime, nonPizzaItems, orderType);
+            window.api.printSingle({
+                content: nonPizzaSlip,
+                printer: customerPrinter
+            });
+        }
 
         // Reset
         cart = [];
