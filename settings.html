@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Settings - POS System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="brand">POS SYSTEM - SETTINGS</div>
+        <div class="nav-links">
+            <button id="nav-pos">POS</button>
+            <button id="nav-products">Products</button>
+            <button id="nav-reports">Reports</button>
+            <button id="nav-settings" class="active">Settings</button>
+        </div>
+    </nav>
+
+    <div class="report-section">
+        <h2>Admin Settings</h2>
+        <div id="settings-form" class="modal" style="position: static; margin-top: 2rem; width: 100%; max-width: 500px;">
+            <h3>Change Password</h3>
+            <p style="margin-bottom: 1rem;">Verify your current password and set a new one.</p>
+            <input type="password" id="old-pwd" placeholder="Current password">
+            <input type="password" id="new-pwd" placeholder="New password">
+            <input type="password" id="confirm-pwd" placeholder="Confirm new password">
+            <button id="btn-update-pwd">Update Password</button>
+        </div>
+
+        <div class="modal" style="position: static; margin-top: 2rem; width: 100%; max-width: 500px;">
+            <h3>Software Updates</h3>
+            <p style="margin-bottom: 1rem;">Keep your POS system up to date with the latest features.</p>
+            <div id="update-status" style="margin-bottom: 1rem; color: #666;">Version 1.0.0</div>
+            <div id="progress-container" class="hidden" style="background: #eee; border-radius: 4px; height: 10px; margin-bottom: 1rem; overflow: hidden;">
+                <div id="progress-bar" style="background: var(--accent); width: 0%; height: 100%; transition: width 0.3s;"></div>
+            </div>
+            <button id="btn-check-updates" style="background: var(--primary);">Check for Updates</button>
+            <button id="btn-restart-update" class="hidden" style="background: var(--accent);">Restart & Install Update</button>
+        </div>
+
+    </div>
+
+    <script>
+        document.getElementById('btn-update-pwd').addEventListener('click', async () => {
+            const oldP = document.getElementById('old-pwd').value;
+            const p1 = document.getElementById('new-pwd').value;
+            const p2 = document.getElementById('confirm-pwd').value;
+
+            const currentP = await window.api.getPassword();
+            
+            if (oldP !== currentP) {
+                alert("Incorrect current password!");
+                return;
+            }
+
+            if (p1 && p1 === p2) {
+                await window.api.setPassword(p1);
+                alert("Password updated successfully!");
+                document.getElementById('old-pwd').value = '';
+                document.getElementById('new-pwd').value = '';
+                document.getElementById('confirm-pwd').value = '';
+            } else {
+                alert("New passwords do not match or are empty!");
+            }
+        });
+
+        document.getElementById('nav-pos').addEventListener('click', () => window.api.navigateTo('index.html'));
+        document.getElementById('nav-products').addEventListener('click', () => window.api.navigateTo('products.html'));
+        document.getElementById('nav-reports').addEventListener('click', () => window.api.navigateTo('reports.html'));
+
+        // Update logic
+        const statusText = document.getElementById('update-status');
+        const btnCheck = document.getElementById('btn-check-updates');
+        const btnRestart = document.getElementById('btn-restart-update');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+
+        btnCheck.addEventListener('click', () => {
+            statusText.innerText = "Checking for updates...";
+            window.api.checkForUpdates();
+        });
+
+        btnRestart.addEventListener('click', () => {
+            window.api.quitAndInstall();
+        });
+
+        window.api.onUpdateAvailable(() => {
+            statusText.innerText = "New update available! Downloading...";
+            progressContainer.classList.remove('hidden');
+        });
+
+        window.api.onUpdateNotAvailable(() => {
+            statusText.innerText = "You are on the latest version.";
+        });
+
+        window.api.onUpdateProgress((percent) => {
+            progressBar.style.width = `${percent}%`;
+            statusText.innerText = `Downloading... ${Math.round(percent)}%`;
+        });
+
+        window.api.onUpdateDownloaded(() => {
+            statusText.innerText = "Update downloaded! Ready to install.";
+            progressContainer.classList.add('hidden');
+            btnCheck.classList.add('hidden');
+            btnRestart.classList.remove('hidden');
+        });
+    </script>
+
+</body>
+</html>

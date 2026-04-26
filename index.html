@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="setup-overlay" class="hidden">
+        <div class="modal">
+            <h2>Initial Setup</h2>
+            <p>Set admin password</p>
+            <input type="password" id="setup-pwd" placeholder="Enter password">
+            <input type="password" id="setup-pwd-confirm" placeholder="Confirm password">
+            <button id="btn-save-setup">Save & Continue</button>
+        </div>
+    </div>
+
+    <div id="login-overlay" class="hidden">
+        <div class="modal">
+            <h2>Admin Login</h2>
+            <input type="password" id="login-pwd" placeholder="Enter password">
+            <button id="btn-login">Login</button>
+        </div>
+    </div>
+
+    <nav class="navbar">
+        <div class="brand">POS SYSTEM</div>
+        <div class="nav-links">
+            <button id="nav-pos" class="active">POS</button>
+            <button id="nav-products">Products</button>
+            <button id="nav-reports">Reports</button>
+            <button id="nav-settings">Settings</button>
+            <button id="btn-day-end" style="background: var(--danger);">Day End</button>
+            <button id="btn-logout">Logout</button>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- Categories -->
+        <div class="panel left-panel">
+            <div class="panel-header">Categories</div>
+            <div id="categories-list">
+                <button class="category-btn active" data-category="All">All Items</button>
+                <button class="category-btn" data-category="Burger">Burger</button>
+                <button class="category-btn" data-category="Pizza">Pizza</button>
+                <button class="category-btn" data-category="BBQ">BBQ</button>
+            </div>
+        </div>
+
+        <!-- Products -->
+        <div class="panel middle-panel">
+            <div class="panel-header">Products</div>
+            <div id="products-grid" class="products-grid">
+                <!-- Products will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Cart -->
+        <div class="panel right-panel">
+            <div class="panel-header">Current Order</div>
+            <div id="cart-items" class="cart-items">
+                <!-- Cart items will be loaded here -->
+            </div>
+            <div class="cart-footer">
+                <div class="total-row">
+                    <span>Total</span>
+                    <span id="cart-total">Rs 0.00</span>
+                </div>
+                <button id="btn-complete-order" class="btn-complete">Complete Order & Print</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

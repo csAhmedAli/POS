@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reports - POS System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="brand">POS SYSTEM - REPORTS</div>
+        <div class="nav-links">
+            <button id="nav-pos">POS</button>
+            <button id="nav-products">Products</button>
+            <button id="nav-reports" class="active">Reports</button>
+            <button id="nav-settings">Settings</button>
+        </div>
+    </nav>
+
+    <div class="report-section">
+
+        <!-- Daily Summary -->
+        <section>
+            <h2 class="section-header">Daily Summary</h2>
+            <div id="summary-cards" class="summary-cards">
+                <div class="summary-card">
+                    <div class="label">Total Orders</div>
+                    <div id="total-orders" class="value">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Total Revenue</div>
+                    <div id="total-revenue" class="value">Rs 0.00</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Total Cost</div>
+                    <div id="total-cost" class="value">Rs 0.00</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Net Profit</div>
+                    <div id="net-profit" class="value">Rs 0.00</div>
+                </div>
+            </div>
+
+            <div class="summary-cards" style="grid-template-columns: repeat(2,1fr); max-width: 600px;">
+                <div class="summary-card">
+                    <div class="label">Best Selling</div>
+                    <div id="best-selling" class="value">-</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Worst Selling</div>
+                    <div id="worst-selling" class="value">-</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Wise Sales -->
+        <section>
+            <h2 class="section-header">Product Wise Sales</h2>
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Qty Sold</th>
+                        <th>Total Revenue</th>
+                        <th>Total Profit</th>
+                    </tr>
+                </thead>
+                <tbody id="product-sales-body">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Historical Reports -->
+        <section>
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h2 class="section-header" style="margin-bottom:0; border-bottom:none;">Historical Reports (Past Snapshots)</h2>
+                <button id="btn-export-excel" style="
+                    background: #1a7a4a;
+                    color: white;
+                    border: none;
+                    padding: 0.55rem 1.2rem;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                ">📊 Export to Excel</button>
+            </div>
+            <p><small>Click any row to view detailed sales for that day.</small></p>
+
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Orders</th>
+                        <th>Revenue</th>
+                        <th>Cost</th>
+                        <th>Net Profit</th>
+                    </tr>
+                </thead>
+                <tbody id="historical-reports-body" style="cursor: pointer;">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </section>
+
+    </div>
+
+    <!-- Details Modal -->
+    <div id="details-overlay" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow-y: auto; padding: 2rem;">
+        <div style="background: white; padding: 2rem; border-radius: 8px; width: 95%; max-width: 1100px; margin: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 id="details-title">Daily Sales Details</h2>
+                <button id="btn-close-details" style="padding: 0.5rem 1rem;">Close</button>
+            </div>
+
+            <!-- Sales Details Section Header -->
+            <h3 class="section-header" style="font-size:1rem; margin-bottom: 1rem;">Sales Details</h3>
+
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Unit Price</th>
+                        <th>Unit Cost</th>
+                        <th>Revenue</th>
+                        <th>Line Profit</th>
+                    </tr>
+                </thead>
+                <tbody id="details-body">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // ── Helpers ──────────────────────────────────────────
+        function profitClass(val) {
+            return val >= 0 ? 'profit-positive' : 'profit-negative';
+        }
+
+        function fmt(val) {
+            return `Rs ${(val || 0).toFixed(2)}`;
+        }
+
+        // ── Load Main Reports ────────────────────────────────
+        async function loadReports() {
+            const summary    = await window.api.getSummary();
+            const productSales = await window.api.getProductWiseSales();
+            const bestWorst  = await window.api.getBestWorstSelling();
+            const historical = await window.api.getHistoricalReports();
+
+            // --- Summary Cards ---
+            const totalOrders  = summary.total_orders  || 0;
+            const totalRevenue = summary.total_revenue || 0;
+            const totalCost    = summary.total_cost    || 0;
+            const netProfit    = totalRevenue - totalCost;
+
+            document.getElementById('total-orders').innerText  = totalOrders;
+            document.getElementById('total-revenue').innerText = fmt(totalRevenue);
+            document.getElementById('total-cost').innerText    = fmt(totalCost);
+
+            const profitEl = document.getElementById('net-profit');
+            profitEl.innerText = fmt(netProfit);
+            profitEl.className = 'value ' + profitClass(netProfit);
+
+            // --- Best / Worst ---
+            document.getElementById('best-selling').innerText  = bestWorst.best
+                ? `${bestWorst.best.product_name} (${bestWorst.best.total_qty})`
+                : '-';
+            document.getElementById('worst-selling').innerText = bestWorst.worst
+                ? `${bestWorst.worst.product_name} (${bestWorst.worst.total_qty})`
+                : '-';
+
+            // --- Product Wise Sales ---
+            const tbodyProd = document.getElementById('product-sales-body');
+            tbodyProd.innerHTML = '';
+
+            if (!productSales || productSales.length === 0) {
+                tbodyProd.innerHTML = `<tr class="no-data-row"><td colspan="4">No data available</td></tr>`;
+            } else {
+                productSales.forEach(sale => {
+                    const tr = document.createElement('tr');
+                    const pClass = profitClass(sale.total_profit);
+                    tr.innerHTML = `
+                        <td>${sale.product_name}</td>
+                        <td>${sale.total_quantity}</td>
+                        <td>${fmt(sale.total_revenue)}</td>
+                        <td class="${pClass}">${fmt(sale.total_profit)}</td>
+                    `;
+                    tbodyProd.appendChild(tr);
+                });
+            }
+
+            // --- Historical Reports ---
+            const tbodyHist = document.getElementById('historical-reports-body');
+            tbodyHist.innerHTML = '';
+
+            if (!historical || historical.length === 0) {
+                tbodyHist.innerHTML = `<tr class="no-data-row"><td colspan="5">No data available</td></tr>`;
+            } else {
+                historical.forEach(rep => {
+                    const tr = document.createElement('tr');
+                    const pClass = profitClass(rep.net_profit);
+                    tr.innerHTML = `
+                        <td>${rep.date}</td>
+                        <td>${rep.total_orders}</td>
+                        <td>${fmt(rep.total_revenue)}</td>
+                        <td>${fmt(rep.total_cost)}</td>
+                        <td class="${pClass}">${fmt(rep.net_profit)}</td>
+                    `;
+                    tr.onclick = () => showDetails(rep.date);
+                    tbodyHist.appendChild(tr);
+                });
+            }
+        }
+
+        // ── Show Grouped Sales Details ───────────────────────
+        async function showDetails(dateStr) {
+            const items = await window.api.getDetailedHistory(dateStr);
+
+            document.getElementById('details-title').innerText = `Sales Details — ${dateStr}`;
+            const tbody = document.getElementById('details-body');
+            tbody.innerHTML = '';
+
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr class="no-data-row"><td colspan="6">No data available</td></tr>`;
+                document.getElementById('details-overlay').classList.remove('hidden');
+                return;
+            }
+
+            // Group items by order_id (preserving order)
+            const groups = new Map();
+            items.forEach(item => {
+                if (!groups.has(item.order_id)) {
+                    groups.set(item.order_id, {
+                        order_id: item.order_id,
+                        token_number: item.token_number,
+                        datetime: item.datetime,
+                        items: []
+                    });
+                }
+                groups.get(item.order_id).items.push(item);
+            });
+
+            // Render each group
+            groups.forEach(group => {
+                // Calculate group-level totals
+                const grpRevenue = group.items.reduce((s, i) => s + (i.line_total || 0), 0);
+                const grpCost    = group.items.reduce((s, i) => s + (i.cost * i.quantity || 0), 0);
+                const grpProfit  = grpRevenue - grpCost;
+                const timeStr    = new Date(group.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const pClass     = profitClass(grpProfit);
+
+                // Group header row
+                const headerTr = document.createElement('tr');
+                headerTr.className = 'order-group-header';
+                headerTr.innerHTML = `
+                    <td colspan="6">
+                        Order&nbsp;#${group.token_number}
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        ⏰ ${timeStr}
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        Revenue: ${fmt(grpRevenue)}
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        Cost: ${fmt(grpCost)}
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        Profit: <span class="${grpProfit >= 0 ? 'profit-positive' : 'profit-negative'}" style="color:${grpProfit >= 0 ? '#2ecc71' : '#e74c3c'}">${fmt(grpProfit)}</span>
+                    </td>
+                `;
+                tbody.appendChild(headerTr);
+
+                // Item rows
+                group.items.forEach(item => {
+                    const itemTr = document.createElement('tr');
+                    itemTr.className = 'order-group-row';
+                    const lp = item.line_profit || 0;
+                    itemTr.innerHTML = `
+                        <td>${item.product_name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${fmt(item.price)}</td>
+                        <td>${fmt(item.cost)}</td>
+                        <td>${fmt(item.line_total)}</td>
+                        <td class="${profitClass(lp)}">${fmt(lp)}</td>
+                    `;
+                    tbody.appendChild(itemTr);
+                });
+            });
+
+            document.getElementById('details-overlay').classList.remove('hidden');
+        }
+
+        // ── Events ───────────────────────────────────────────
+        document.getElementById('btn-close-details').addEventListener('click', () => {
+            document.getElementById('details-overlay').classList.add('hidden');
+        });
+
+        document.getElementById('btn-export-excel').addEventListener('click', async () => {
+            const historical = await window.api.getHistoricalReports();
+            if (!historical || historical.length === 0) {
+                alert('No historical reports to export. End a day first to save a snapshot.');
+                return;
+            }
+            const btn = document.getElementById('btn-export-excel');
+            btn.textContent = '⏳ Exporting...';
+            btn.disabled = true;
+            try {
+                const result = await window.api.exportDayReport(historical);
+                if (result.success) {
+                    alert(`✅ Exported successfully!\n\nSaved to:\n${result.filePath}`);
+                } else if (result.reason !== 'canceled') {
+                    alert(`❌ Export failed: ${result.reason}`);
+                }
+            } finally {
+                btn.innerHTML = '📊 Export to Excel';
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById('nav-pos').addEventListener('click',      () => window.api.navigateTo('index.html'));
+        document.getElementById('nav-products').addEventListener('click', () => window.api.navigateTo('products.html'));
+        document.getElementById('nav-settings').addEventListener('click', () => window.api.navigateTo('settings.html'));
+
+
+        loadReports();
+    </script>
+</body>
+</html>

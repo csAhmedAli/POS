@@ -1,0 +1,62 @@
+{
+  "name": "pos-system",
+  "productName": "POS System",
+  "version": "1.0.0",
+  "description": "Offline POS System for Food Shop",
+  "main": "main.js",
+  "homepage": "https://github.com/csAhmedAli/POS",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/csAhmedAli/POS.git"
+  },
+
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build",
+    "build:win": "electron-builder build --win",
+    "build:linux": "electron-builder build --linux",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "author": "csAhmedAli <csahmedali@example.com>",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "electron-updater": "^6.8.3",
+    "xlsx-js-style": "^1.2.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.pos.system",
+    "productName": "POS System",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "csAhmedAli",
+      "repo": "POS"
+    },
+
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "csAhmedAli <csahmedali@example.com>",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
