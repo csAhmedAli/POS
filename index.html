@@ -42,11 +42,9 @@
         <div class="panel left-panel">
             <div class="panel-header">Categories</div>
             <div id="categories-list">
-                <button class="category-btn active" data-category="All">All Items</button>
-                <button class="category-btn" data-category="Burger">Burger</button>
-                <button class="category-btn" data-category="Pizza">Pizza</button>
-                <button class="category-btn" data-category="BBQ">BBQ</button>
+                <!-- Dynamically populated -->
             </div>
+
         </div>
 
         <!-- Products -->
@@ -68,7 +66,11 @@
                     <span>Total</span>
                     <span id="cart-total">Rs 0.00</span>
                 </div>
-                <button id="btn-complete-order" class="btn-complete">Complete Order & Print</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-dine-in" class="btn-complete" style="background: var(--primary); font-size: 1rem; padding: 1rem 0.5rem;">Dine-In (Stay)</button>
+                    <button id="btn-takeaway" class="btn-complete" style="font-size: 1rem; padding: 1rem 0.5rem;">Takeaway (Home)</button>
+                </div>
+
             </div>
         </div>
     </div>

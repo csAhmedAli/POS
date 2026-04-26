@@ -1,13 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const XLSX = require('xlsx-js-style');
-const { autoUpdater } = require('electron-updater');
-
-// Auto-Updater Configuration
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
-
-
 
 const db = require('./database');
 
@@ -32,20 +25,6 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     
-    // Auto-update event bridges
-    autoUpdater.on('update-available', () => {
-        mainWindow.webContents.send('update-available');
-    });
-    autoUpdater.on('update-not-available', () => {
-        mainWindow.webContents.send('update-not-available');
-    });
-    autoUpdater.on('download-progress', (progressObj) => {
-        mainWindow.webContents.send('update-progress', progressObj.percent);
-    });
-    autoUpdater.on('update-downloaded', () => {
-        mainWindow.webContents.send('update-downloaded');
-    });
-
     // Check if password exists
     const pwd = db.getPassword();
     mainWindow.webContents.on('did-finish-load', () => {
@@ -76,9 +55,10 @@ ipcMain.handle('db:getProducts', async () => {
 ipcMain.handle('db:createOrder', async (event, orderData, items) => {
     try { return db.createOrder(orderData, items); } catch (e) { console.error(e); throw e; }
 });
-ipcMain.handle('db:getNextTokenNumber', async () => {
-    try { return db.getNextTokenNumber(); } catch (e) { console.error(e); throw e; }
+ipcMain.handle('db:getNextTokenNumber', async (event, orderType) => {
+    try { return db.getNextTokenNumber(orderType); } catch (e) { console.error(e); throw e; }
 });
+
 ipcMain.handle('db:getPassword', async () => {
     try { return db.getPassword(); } catch (e) { console.error(e); throw e; }
 });
@@ -125,8 +105,51 @@ ipcMain.handle('db:deleteProduct', async (event, id) => {
     try { return db.deleteProduct(id); } catch (e) { console.error(e); throw e; }
 });
 
+ipcMain.handle('db:getSetting', async (event, key) => {
+    try { return db.getSetting(key); } catch (e) { console.error(e); throw e; }
+});
+ipcMain.handle('db:setSetting', async (event, key, value) => {
+    try { return db.setSetting(key, value); } catch (e) { console.error(e); throw e; }
+});
+
+
 // Printing
+ipcMain.handle('app:getPrinters', async () => {
+    return mainWindow.webContents.getPrintersAsync();
+});
+
+ipcMain.on('print-dual', (event, { customerContent, kitchenContent, customerPrinter, kitchenPrinter }) => {
+    // Print Customer Receipt
+    if (customerContent) {
+        let customerWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+        customerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(customerContent)}`);
+        customerWindow.webContents.on('did-finish-load', () => {
+            const printOptions = { silent: true, printBackground: true };
+            if (customerPrinter) printOptions.deviceName = customerPrinter;
+            customerWindow.webContents.print(printOptions, (success, err) => {
+                if (!success) console.error('Customer print failed:', err);
+                customerWindow.close();
+            });
+        });
+    }
+
+    // Print Kitchen Receipt
+    if (kitchenContent) {
+        let kitchenWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+        kitchenWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(kitchenContent)}`);
+        kitchenWindow.webContents.on('did-finish-load', () => {
+            const printOptions = { silent: true, printBackground: true };
+            if (kitchenPrinter) printOptions.deviceName = kitchenPrinter;
+            kitchenWindow.webContents.print(printOptions, (success, err) => {
+                if (!success) console.error('Kitchen print failed:', err);
+                kitchenWindow.close();
+            });
+        });
+    }
+});
+
 ipcMain.on('print', (event, content) => {
+
     let workerWindow = new BrowserWindow({
         show: false,
         webPreferences: {
@@ -235,11 +258,12 @@ ipcMain.handle('export:dayReport', async (event, reports) => {
                 const gProf = gRev - gCost;
                 const timeStr = new Date(group.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-                // Header text matching UI: Order # | ⏰ Time | Revenue | Cost | Profit
-                const headerText = `Order #${group.token_number}  |  ⏰ ${timeStr}  |  Revenue: Rs ${gRev.toFixed(2)}  |  Cost: Rs ${gCost.toFixed(2)}  |  Profit: Rs ${gProf.toFixed(2)}`;
+                // Header text matching UI: [TYPE] Order # | ⏰ Time | Revenue | Cost | Profit
+                const headerText = `[${group.items[0].order_type.toUpperCase()}] Order #${group.token_number}  |  ⏰ ${timeStr}  |  Revenue: Rs ${gRev.toFixed(2)}  |  Cost: Rs ${gCost.toFixed(2)}  |  Profit: Rs ${gProf.toFixed(2)}`;
                 
                 const headerRowIdx = rows.length;
                 rows.push([headerText, '', '', '', '', '']);
+
                 merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 5 } });
                 rowMeta.push({ type: 'header', r: headerRowIdx });
 
@@ -303,15 +327,3 @@ ipcMain.handle('export:dayReport', async (event, reports) => {
         return { success: false, reason: err.message };
     }
 });
-
-
-ipcMain.handle('app:checkForUpdates', () => {
-    autoUpdater.checkForUpdatesAndNotify();
-});
-
-ipcMain.handle('app:quitAndInstall', () => {
-    autoUpdater.quitAndInstall();
-});
-
-
-

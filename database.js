@@ -28,9 +28,22 @@ function initDB() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             token_number INTEGER NOT NULL,
             datetime TEXT NOT NULL,
-            total_amount REAL NOT NULL
+            total_amount REAL NOT NULL,
+            order_type TEXT NOT NULL DEFAULT 'Takeaway'
         )
+
     `).run();
+
+    // Migration: Ensure order_type exists in orders table
+    try {
+        db.prepare("ALTER TABLE orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'Takeaway'").run();
+    } catch (e) {
+        // Column already exists or table doesn't exist yet (handled by CREATE TABLE above)
+        if (!e.message.includes('duplicate column name')) {
+            console.error("Migration error (order_type):", e.message);
+        }
+    }
+
 
     // Order Items Table
     db.prepare(`
@@ -96,31 +109,46 @@ module.exports = {
         }
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('password', password);
     },
+    getSetting: (key) => {
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+        return row ? row.value : null;
+    },
+    setSetting: (key, value) => {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+    },
 
     // Products
+
     getProducts: () => {
         return db.prepare('SELECT * FROM products').all();
     },
 
     // Orders
-    getNextTokenNumber: () => {
-        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('last_token');
+    getNextTokenNumber: (orderType) => {
+        const key = orderType === 'Dine-In' ? 'last_token_dinein' : 'last_token_takeaway';
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
         const nextToken = (parseInt(row ? row.value : 0) || 0) + 1;
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('last_token', nextToken.toString());
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, nextToken.toString());
         return nextToken;
     },
+
     resetTokenNumber: () => {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('last_token', '0');
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('last_token_dinein', '0');
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('last_token_takeaway', '0');
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('last_token', '0'); // Legacy support
     },
+
     createOrder: (orderData, items) => {
-        const insertOrder = db.prepare('INSERT INTO orders (token_number, datetime, total_amount) VALUES (?, ?, ?)');
+        const insertOrder = db.prepare('INSERT INTO orders (token_number, datetime, total_amount, order_type) VALUES (?, ?, ?, ?)');
+
         const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, product_name, quantity, price, cost, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)');
 
         // Ensure datetime is ISO for better querying
         const isoDate = new Date().toISOString();
 
         const transaction = db.transaction((order, items) => {
-            const info = insertOrder.run(order.token_number, isoDate, order.total_amount);
+            const info = insertOrder.run(order.token_number, isoDate, order.total_amount, order.order_type || 'Takeaway');
+
             const orderId = info.lastInsertRowid;
             for (const item of items) {
                 insertItem.run(orderId, item.product_id, item.product_name, item.quantity, item.price, item.cost, item.line_total);
@@ -139,7 +167,9 @@ module.exports = {
                 o.id as order_id,
                 o.token_number, 
                 o.datetime, 
+                o.order_type,
                 oi.id as item_id,
+
                 oi.product_name, 
                 oi.quantity, 
                 oi.price, 

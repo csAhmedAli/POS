@@ -57,7 +57,11 @@ body {
     border-right: 1px solid var(--border);
 }
 
-.left-panel { flex: 0 0 200px; }
+.left-panel { 
+    flex: 0 0 200px; 
+    overflow-y: auto;
+}
+
 .middle-panel { flex: 1; border-right: none; }
 .right-panel { flex: 0 0 350px; border-left: 1px solid var(--border); }
 

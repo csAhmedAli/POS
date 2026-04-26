@@ -2,14 +2,10 @@
   "name": "pos-system",
   "productName": "POS System",
   "version": "1.0.0",
+
   "description": "Offline POS System for Food Shop",
   "main": "main.js",
   "homepage": "https://github.com/csAhmedAli/POS",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/csAhmedAli/POS.git"
-  },
-
   "scripts": {
     "start": "electron .",
     "build": "electron-builder build",
@@ -21,7 +17,6 @@
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^11.5.0",
-    "electron-updater": "^6.8.3",
     "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
@@ -35,12 +30,6 @@
     "directories": {
       "output": "dist"
     },
-    "publish": {
-      "provider": "github",
-      "owner": "csAhmedAli",
-      "repo": "POS"
-    },
-
     "win": {
       "target": "nsis",
       "icon": "build/icon.png"

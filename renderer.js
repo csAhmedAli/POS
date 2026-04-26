@@ -6,8 +6,9 @@ let currentCategory = 'All';
 const productsGrid = document.getElementById('products-grid');
 const cartItemsContainer = document.getElementById('cart-items');
 const cartTotalElement = document.getElementById('cart-total');
-const categoryBtns = document.querySelectorAll('.category-btn');
+const categoriesList = document.getElementById('categories-list');
 const setupOverlay = document.getElementById('setup-overlay');
+
 const loginOverlay = document.getElementById('login-overlay');
 
 // Initialize
@@ -22,7 +23,9 @@ async function init() {
             loginOverlay.classList.remove('hidden');
         }
 
+        renderCategories();
         renderProducts();
+
     } catch (err) {
         console.error("Initialization error:", err);
         // Even if DB fails, check setup status if possible, or show a clear error
@@ -49,6 +52,32 @@ function renderProducts() {
         productsGrid.appendChild(card);
     });
 }
+
+// Render Categories
+function renderCategories() {
+    categoriesList.innerHTML = '';
+    
+    // Get unique categories from products
+    const uniqueCategories = ['All', ...new Set(allProducts.map(p => p.category))];
+
+    uniqueCategories.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = `category-btn \${currentCategory === cat ? 'active' : ''}`;
+        btn.innerText = cat === 'All' ? 'All Items' : cat;
+        btn.dataset.category = cat;
+        
+        btn.onclick = () => {
+            const allBtns = categoriesList.querySelectorAll('.category-btn');
+            allBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentCategory = cat;
+            renderProducts();
+        };
+        
+        categoriesList.appendChild(btn);
+    });
+}
+
 
 // Cart Logic
 window.addToCart = (productId) => {
@@ -107,80 +136,124 @@ window.changeQty = (index, delta) => {
     updateCart();
 };
 
-// Category filter
-categoryBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        categoryBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentCategory = btn.dataset.category;
-        renderProducts();
-    });
-});
+
 
 // Order Completion
-document.getElementById('btn-complete-order').addEventListener('click', async () => {
+async function completeOrder(orderType) {
     if (cart.length === 0) {
         alert("Cart is empty!");
         return;
     }
 
     const total = cart.reduce((sum, item) => sum + item.line_total, 0);
-    const tokenNumber = await window.api.getNextTokenNumber();
+    const tokenNumber = await window.api.getNextTokenNumber(orderType);
     const datetime = new Date().toLocaleString();
+
 
     const orderData = {
         token_number: tokenNumber,
         datetime: datetime,
-        total_amount: total
+        total_amount: total,
+        order_type: orderType
     };
 
     try {
         await window.api.createOrder(orderData, cart);
         
+        // Fetch Printer Settings
+        const customerPrinter = await window.api.getSetting('printer_customer');
+        const kitchenPrinter = await window.api.getSetting('printer_chef');
+
         // Prepare Printing Content
-        const customerSlip = generateSlip(tokenNumber, datetime, cart, total, "CUSTOMER COPY");
-        const kitchenSlip = generateSlip(tokenNumber, datetime, cart, total, "KITCHEN COPY", true);
+        const customerSlip = generateCustomerSlip(tokenNumber, datetime, cart, total, orderType);
+        const kitchenSlip = generateKitchenSlip(tokenNumber, datetime, cart, orderType);
         
-        // Print
-        window.api.print(customerSlip + "<hr style='border: 1px dashed #000; margin: 20px 0;'>" + kitchenSlip);
+        // Print Dual
+        window.api.printDual({
+            customerContent: customerSlip,
+            customerPrinter: customerPrinter,
+            kitchenContent: kitchenSlip,
+            kitchenPrinter: kitchenPrinter
+        });
 
         // Reset
         cart = [];
         updateCart();
-        alert(`Order #${tokenNumber} Completed!`);
+        alert(`${orderType} Order #${tokenNumber} Completed!`);
     } catch (err) {
         console.error(err);
         alert("Error saving order");
     }
-});
+}
 
-function generateSlip(token, date, items, total, type, isKitchen = false) {
+document.getElementById('btn-dine-in').addEventListener('click', () => completeOrder('Dine-In'));
+document.getElementById('btn-takeaway').addEventListener('click', () => completeOrder('Takeaway'));
+
+function generateCustomerSlip(token, date, items, total, orderType) {
+    const isDineIn = orderType === 'Dine-In';
+    const copyTitle = isDineIn ? "WAITER COPY" : "CUSTOMER COPY";
+    
     let itemsHtml = items.map(item => `
-        <tr>
-            <td>${item.product_name} x ${item.quantity}</td>
-            ${isKitchen ? '' : `<td style="text-align: right;">Rs ${item.line_total.toFixed(2)}</td>`}
+        <tr style="border-bottom: 1px dashed #eee;">
+            <td style="padding: 5px 0;">${item.product_name} x ${item.quantity}</td>
+            <td style="text-align: right;">Rs ${item.line_total.toFixed(2)}</td>
         </tr>
     `).join('');
 
     return `
-        <div style="width: 300px; font-family: monospace; padding: 20px;">
-            <h2 style="text-align: center;">${type}</h2>
-            <p style="text-align: center;">TOKEN: ${token}</p>
-            <hr>
-            <p>Date: ${date}</p>
-            <hr>
-            <table style="width: 100%;">
+        <div style="width: 190px; font-family: 'Courier New', Courier, monospace; padding: 5px; color: #000; background: #fff; font-size: 12px;">
+            <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 8px;">
+                <h1 style="margin: 0; font-size: 1.2rem;">POS SYSTEM</h1>
+                <p style="margin: 2px 0; font-weight: bold;">[ ${orderType.toUpperCase()} ]</p>
+                <p style="margin: 2px 0; font-size: 0.8rem; border: 1px solid #000; display: inline-block; padding: 1px 5px;">${copyTitle}</p>
+                <div style="font-size: 1.8rem; font-weight: bold; margin: 5px 0;">TOKEN: ${token}</div>
+            </div>
+
+            <p style="font-size: 0.8rem; margin-bottom: 10px;">Date: ${date}</p>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
                 ${itemsHtml}
             </table>
-            ${isKitchen ? '' : `
-            <hr>
-            <p style="font-size: 1.2rem; font-weight: bold; text-align: right;">TOTAL: Rs ${total.toFixed(2)}</p>
-            `}
-            <hr>
-            <p style="text-align: center;">Thank you!</p>
+            <div style="border-top: 2px solid #000; padding-top: 10px; text-align: right;">
+                <div style="font-size: 1.5rem; font-weight: bold;">TOTAL: Rs ${total.toFixed(2)}</div>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px;">
+                ${isDineIn ? '<p style="margin: 0; font-weight: bold;">Waiter: Keep this for delivery</p>' : '<p style="margin: 0;">Thank you for your visit!</p>'}
+                <p style="margin: 5px 0 0; font-size: 0.7rem;">Powered by Antigravity POS</p>
+            </div>
         </div>
     `;
 }
+
+function generateKitchenSlip(token, date, items, orderType) {
+    let itemsHtml = items.map(item => `
+        <tr style="border-bottom: 2px solid #000;">
+            <td style="padding: 10px 0; font-size: 1.8rem; font-weight: bold;">
+                ${item.quantity} x ${item.product_name}
+            </td>
+        </tr>
+    `).join('');
+
+    return `
+        <div style="width: 190px; font-family: Arial, sans-serif; padding: 5px; color: #000; background: #fff;">
+            <div style="text-align: center; border-bottom: 4px solid #000; padding-bottom: 5px; margin-bottom: 8px;">
+                <h1 style="margin: 0; font-size: 1.5rem;">KITCHEN ORDER</h1>
+                <p style="margin: 2px 0; font-size: 1.4rem; font-weight: bold; background: #000; color: #fff; display: inline-block; padding: 0 10px;">${orderType.toUpperCase()}</p>
+                <div style="font-size: 3rem; font-weight: bold; margin: 5px 0;"># ${token}</div>
+            </div>
+
+            <p style="font-size: 1rem; margin-bottom: 10px;">Date: ${date}</p>
+            <table style="width: 100%; border-collapse: collapse;">
+                ${itemsHtml}
+            </table>
+            <div style="text-align: center; margin-top: 20px; border-top: 2px solid #000; padding-top: 10px;">
+                <p style="margin: 0; font-weight: bold; font-size: 1.2rem;">*** NEW ORDER ***</p>
+            </div>
+        </div>
+    `;
+}
+
+
 
 // Auth Handlers
 document.getElementById('btn-save-setup').addEventListener('click', async () => {

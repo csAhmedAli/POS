@@ -261,6 +261,9 @@
                 headerTr.className = 'order-group-header';
                 headerTr.innerHTML = `
                     <td colspan="6">
+                        <span style="background: #2c3e50; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${(group.items[0].order_type || 'Unknown').toUpperCase()}</span>
+
+                        &nbsp;&nbsp;
                         Order&nbsp;#${group.token_number}
                         &nbsp;&nbsp;|&nbsp;&nbsp;
                         ⏰ ${timeStr}
@@ -271,6 +274,7 @@
                         &nbsp;&nbsp;|&nbsp;&nbsp;
                         Profit: <span class="${grpProfit >= 0 ? 'profit-positive' : 'profit-negative'}" style="color:${grpProfit >= 0 ? '#2ecc71' : '#e74c3c'}">${fmt(grpProfit)}</span>
                     </td>
+
                 `;
                 tbody.appendChild(headerTr);
 

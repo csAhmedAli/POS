@@ -4,7 +4,8 @@ contextBridge.exposeInMainWorld('api', {
     // Database operations relayed via IPC
     getProducts: () => ipcRenderer.invoke('db:getProducts'),
     createOrder: (orderData, items) => ipcRenderer.invoke('db:createOrder', orderData, items),
-    getNextTokenNumber: () => ipcRenderer.invoke('db:getNextTokenNumber'),
+    getNextTokenNumber: (orderType) => ipcRenderer.invoke('db:getNextTokenNumber', orderType),
+
     getPassword: () => ipcRenderer.invoke('db:getPassword'),
     setPassword: (password) => {
         console.log("Preload received password:", password);
@@ -25,19 +26,21 @@ contextBridge.exposeInMainWorld('api', {
 
     // Printing
     print: (content) => ipcRenderer.send('print', content),
+    printDual: (payload) => ipcRenderer.send('print-dual', payload),
+    getPrinters: () => ipcRenderer.invoke('app:getPrinters'),
+
+    // Settings
+    getSetting: (key) => ipcRenderer.invoke('db:getSetting', key),
+    setSetting: (key, value) => ipcRenderer.invoke('db:setSetting', key, value),
 
     // Export
     exportDayReport: (reports) => ipcRenderer.invoke('export:dayReport', reports),
 
     // Navigation
-    navigateTo: (page) => ipcRenderer.send('navigate', page),
-
-    // Auto-Updater
-    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
-    quitAndInstall: () => ipcRenderer.invoke('app:quitAndInstall'),
-    onUpdateAvailable: (callback) => ipcRenderer.on('update-available', callback),
-    onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', callback),
-    onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (event, percent) => callback(percent)),
-    onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', callback)
+    navigateTo: (page) => ipcRenderer.send('navigate', page)
 });
+
+
+
+
 

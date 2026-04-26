@@ -28,20 +28,67 @@
         </div>
 
         <div class="modal" style="position: static; margin-top: 2rem; width: 100%; max-width: 500px;">
-            <h3>Software Updates</h3>
-            <p style="margin-bottom: 1rem;">Keep your POS system up to date with the latest features.</p>
-            <div id="update-status" style="margin-bottom: 1rem; color: #666;">Version 1.0.0</div>
-            <div id="progress-container" class="hidden" style="background: #eee; border-radius: 4px; height: 10px; margin-bottom: 1rem; overflow: hidden;">
-                <div id="progress-bar" style="background: var(--accent); width: 0%; height: 100%; transition: width 0.3s;"></div>
-            </div>
-            <button id="btn-check-updates" style="background: var(--primary);">Check for Updates</button>
-            <button id="btn-restart-update" class="hidden" style="background: var(--accent);">Restart & Install Update</button>
+            <h3>Printer Configuration</h3>
+            <p style="margin-bottom: 1rem;">Select hardware printers for receipts through the wire.</p>
+            
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">Customer Receipt Printer</label>
+            <select id="select-printer-customer" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="">Default Printer</option>
+            </select>
+
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">Kitchen Order Printer</label>
+            <select id="select-printer-chef" style="width: 100%; padding: 0.8rem; margin-bottom: 1.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="">Default Printer</option>
+            </select>
+
+            <button id="btn-save-printers" style="background: var(--accent);">Save Printer Settings</button>
         </div>
 
-    </div>
+
+
 
     <script>
+        document.getElementById('nav-pos').addEventListener('click', () => window.api.navigateTo('index.html'));
+        document.getElementById('nav-products').addEventListener('click', () => window.api.navigateTo('products.html'));
+        document.getElementById('nav-reports').addEventListener('click', () => window.api.navigateTo('reports.html'));
+
+        // Load Printers and Settings
+        async function initPrinters() {
+            const printers = await window.api.getPrinters();
+            const customerSelect = document.getElementById('select-printer-customer');
+            const chefSelect = document.getElementById('select-printer-chef');
+
+            printers.forEach(p => {
+                const opt1 = document.createElement('option');
+                opt1.value = p.name;
+                opt1.innerText = p.name + (p.isDefault ? ' (Default)' : '');
+                customerSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = p.name;
+                opt2.innerText = p.name + (p.isDefault ? ' (Default)' : '');
+                chefSelect.appendChild(opt2);
+            });
+
+            // Load saved settings
+            const savedCustomer = await window.api.getSetting('printer_customer');
+            const savedChef = await window.api.getSetting('printer_chef');
+            if (savedCustomer) customerSelect.value = savedCustomer;
+            if (savedChef) chefSelect.value = savedChef;
+        }
+
+        document.getElementById('btn-save-printers').addEventListener('click', async () => {
+            const customer = document.getElementById('select-printer-customer').value;
+            const chef = document.getElementById('select-printer-chef').value;
+            await window.api.setSetting('printer_customer', customer);
+            await window.api.setSetting('printer_chef', chef);
+            alert("Printer settings saved!");
+        });
+
+        initPrinters();
+
         document.getElementById('btn-update-pwd').addEventListener('click', async () => {
+
             const oldP = document.getElementById('old-pwd').value;
             const p1 = document.getElementById('new-pwd').value;
             const p2 = document.getElementById('confirm-pwd').value;
@@ -63,48 +110,8 @@
                 alert("New passwords do not match or are empty!");
             }
         });
-
-        document.getElementById('nav-pos').addEventListener('click', () => window.api.navigateTo('index.html'));
-        document.getElementById('nav-products').addEventListener('click', () => window.api.navigateTo('products.html'));
-        document.getElementById('nav-reports').addEventListener('click', () => window.api.navigateTo('reports.html'));
-
-        // Update logic
-        const statusText = document.getElementById('update-status');
-        const btnCheck = document.getElementById('btn-check-updates');
-        const btnRestart = document.getElementById('btn-restart-update');
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-
-        btnCheck.addEventListener('click', () => {
-            statusText.innerText = "Checking for updates...";
-            window.api.checkForUpdates();
-        });
-
-        btnRestart.addEventListener('click', () => {
-            window.api.quitAndInstall();
-        });
-
-        window.api.onUpdateAvailable(() => {
-            statusText.innerText = "New update available! Downloading...";
-            progressContainer.classList.remove('hidden');
-        });
-
-        window.api.onUpdateNotAvailable(() => {
-            statusText.innerText = "You are on the latest version.";
-        });
-
-        window.api.onUpdateProgress((percent) => {
-            progressBar.style.width = `${percent}%`;
-            statusText.innerText = `Downloading... ${Math.round(percent)}%`;
-        });
-
-        window.api.onUpdateDownloaded(() => {
-            statusText.innerText = "Update downloaded! Ready to install.";
-            progressContainer.classList.add('hidden');
-            btnCheck.classList.add('hidden');
-            btnRestart.classList.remove('hidden');
-        });
     </script>
+
 
 </body>
 </html>
