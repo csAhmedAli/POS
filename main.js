@@ -125,33 +125,60 @@ ipcMain.handle('app:getPrinters', async () => {
 });
 
 ipcMain.handle('app:checkPrinterStatus', async (event, printerName) => {
-    return new Promise((resolve) => {
-        const { exec } = require('child_process');
-        // Get detailed printer info using -l
-        exec(`lpstat -p "${printerName}" -l`, (error, stdout, stderr) => {
-            if (error) {
-                resolve({ 
-                    status: 'offline', 
-                    message: stderr || error.message,
-                    available: false
-                });
-            } else {
-                // Parse output for more detail
-                const isEnabled = stdout.includes('enabled');
-                const isAccepting = stdout.includes('accepting');
-                const isIdle = stdout.includes('idle');
-                
-                resolve({ 
-                    status: isEnabled && isAccepting ? 'online' : 'busy',
-                    message: stdout,
-                    available: true,
-                    idle: isIdle,
-                    enabled: isEnabled,
-                    accepting: isAccepting
-                });
-            }
+    // Linux Implementation (CUPS)
+    if (process.platform === 'linux') {
+        return new Promise((resolve) => {
+            const { exec } = require('child_process');
+            exec(`lpstat -p "${printerName}" -l`, (error, stdout, stderr) => {
+                if (error) {
+                    resolve({ 
+                        status: 'offline', 
+                        message: stderr || error.message,
+                        available: false
+                    });
+                } else {
+                    const isEnabled = stdout.includes('enabled');
+                    const isAccepting = stdout.includes('accepting');
+                    const isIdle = stdout.includes('idle');
+                    
+                    resolve({ 
+                        status: isEnabled && isAccepting ? 'online' : 'busy',
+                        message: stdout,
+                        available: true,
+                        idle: isIdle,
+                        enabled: isEnabled,
+                        accepting: isAccepting
+                    });
+                }
+            });
         });
-    });
+    } 
+    // Windows Implementation
+    else if (process.platform === 'win32') {
+        try {
+            const printers = await mainWindow.webContents.getPrintersAsync();
+            const printer = printers.find(p => p.name === printerName);
+            
+            if (!printer) {
+                return { status: 'offline', message: 'Printer not found on this system.', available: false };
+            }
+
+            // Electron status mapping for Windows:
+            // 0: OK, 1: Paused, 2: Error, 3: Pending Deletion, 4: Paper Jam, etc.
+            const isOnline = printer.status === 0;
+            
+            return {
+                status: isOnline ? 'online' : 'error/offline',
+                message: `Windows Printer Status Code: ${printer.status}`,
+                available: true,
+                isDefault: printer.isDefault
+            };
+        } catch (err) {
+            return { status: 'error', message: err.message, available: false };
+        }
+    }
+    // Fallback for other OS
+    return { status: 'unknown', message: 'OS not supported for detailed status.', available: true };
 });
 
 // Basic HTML Sanitization
