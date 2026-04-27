@@ -7,6 +7,14 @@ const dbPath = process.env.NODE_ENV === 'development'
     ? path.join(__dirname, 'pos.db')
     : path.join(app.getPath('userData'), 'pos.db');
 
+// In production, if the database doesn't exist in userData, copy the initial one from the app package
+if (process.env.NODE_ENV !== 'development' && !require('fs').existsSync(dbPath)) {
+    const initialDbPath = path.join(process.resourcesPath, 'app', 'pos.db');
+    if (require('fs').existsSync(initialDbPath)) {
+        require('fs').copyFileSync(initialDbPath, dbPath);
+    }
+}
+
 const db = new Database(dbPath);
 
 // Initialize Tables
