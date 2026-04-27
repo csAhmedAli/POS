@@ -46,6 +46,12 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "extraResources": [
+      {
+        "from": "pos.db",
+        "to": "app/pos.db"
+      }
+    ]
   }
 }
