@@ -25,10 +25,13 @@ contextBridge.exposeInMainWorld('api', {
     resetTokenNumber: () => ipcRenderer.invoke('db:resetTokenNumber'),
 
     // Printing
-    print: (content) => ipcRenderer.send('print', content),
-    printDual: (payload) => ipcRenderer.send('print-dual', payload),
-    printSingle: (payload) => ipcRenderer.send('print-single', payload),
+    print: (content) => ipcRenderer.invoke('print', content),
+    printDual: (payload) => ipcRenderer.invoke('app:printDual', payload),
+    printSingle: (payload) => ipcRenderer.invoke('app:printSingle', payload),
     getPrinters: () => ipcRenderer.invoke('app:getPrinters'),
+    checkPrinterStatus: (printerName) => ipcRenderer.invoke('app:checkPrinterStatus', printerName),
+    onPrintSuccess: (callback) => ipcRenderer.on('print-success', (event, data) => callback(data)),
+    onPrintError: (callback) => ipcRenderer.on('print-error', (event, data) => callback(data)),
 
     // Settings
     getSetting: (key) => ipcRenderer.invoke('db:getSetting', key),

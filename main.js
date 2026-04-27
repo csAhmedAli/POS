@@ -115,76 +115,240 @@ ipcMain.handle('db:setSetting', async (event, key, value) => {
 
 // Printing
 ipcMain.handle('app:getPrinters', async () => {
-    return mainWindow.webContents.getPrintersAsync();
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map(p => ({
+        name: p.name, // The crucial CUPS internal name
+        displayName: p.displayName,
+        isDefault: p.isDefault,
+        status: p.status
+    }));
 });
 
-ipcMain.on('print-dual', (event, { customerContent, kitchenContent, customerPrinter, kitchenPrinter }) => {
-    // Print Customer Receipt
-    if (customerContent) {
-        let customerWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-        customerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(customerContent)}`);
-        customerWindow.webContents.on('did-finish-load', () => {
-            const printOptions = { silent: true, printBackground: true };
-            if (customerPrinter) printOptions.deviceName = customerPrinter;
-            customerWindow.webContents.print(printOptions, (success, err) => {
-                if (!success) console.error('Customer print failed:', err);
-                customerWindow.close();
+ipcMain.handle('app:checkPrinterStatus', async (event, printerName) => {
+    return new Promise((resolve) => {
+        const { exec } = require('child_process');
+        // Get detailed printer info using -l
+        exec(`lpstat -p "${printerName}" -l`, (error, stdout, stderr) => {
+            if (error) {
+                resolve({ 
+                    status: 'offline', 
+                    message: stderr || error.message,
+                    available: false
+                });
+            } else {
+                // Parse output for more detail
+                const isEnabled = stdout.includes('enabled');
+                const isAccepting = stdout.includes('accepting');
+                const isIdle = stdout.includes('idle');
+                
+                resolve({ 
+                    status: isEnabled && isAccepting ? 'online' : 'busy',
+                    message: stdout,
+                    available: true,
+                    idle: isIdle,
+                    enabled: isEnabled,
+                    accepting: isAccepting
+                });
+            }
+        });
+    });
+});
+
+// Basic HTML Sanitization
+function sanitizeHTML(html) {
+    if (!html) return '';
+    return html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '');
+}
+
+// Print Queue Implementation
+class PrintQueue {
+    constructor() {
+        this.queue = [];
+        this.isProcessing = false;
+    }
+
+    add(printJob) {
+        return new Promise((resolve, reject) => {
+            // Wrap the callback to resolve/reject the promise
+            const originalCallback = printJob.callback;
+            printJob.promiseHandlers = { resolve, reject };
+            
+            this.queue.push(printJob);
+            if (!this.isProcessing) {
+                this.process();
+            }
+        });
+    }
+
+    async process() {
+        this.isProcessing = true;
+        while (this.queue.length > 0) {
+            const job = this.queue.shift();
+            try {
+                await this.executePrint(job);
+                await this.delay(500); // 500ms delay between prints
+            } catch (error) {
+                console.error('Print job failed:', error);
+            }
+        }
+        this.isProcessing = false;
+    }
+
+    executePrint(job) {
+        return new Promise((resolve, reject) => {
+            let printWindow = new BrowserWindow({ 
+                show: false,
+                webPreferences: { 
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    sandbox: true
+                }
+            });
+            
+            const windowTimeout = setTimeout(() => {
+                if (printWindow && !printWindow.isDestroyed()) {
+                    console.error('⚠️ Print timeout');
+                    printWindow.close();
+                    printWindow = null;
+                    const err = new Error('Print timeout');
+                    if (job.promiseHandlers) job.promiseHandlers.reject(err);
+                    reject(err);
+                }
+            }, 10000);
+            
+            const safeContent = sanitizeHTML(job.content);
+            printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(safeContent)}`);
+            
+            printWindow.webContents.on('did-finish-load', () => {
+                const printOptions = { 
+                    silent: true, 
+                    printBackground: true,
+                    margins: { marginType: 'none' }
+                };
+                
+                if (job.printer) {
+                    printOptions.deviceName = job.printer;
+                }
+                
+                printWindow.webContents.print(printOptions, (success, err) => {
+                    clearTimeout(windowTimeout);
+                    
+                    if (job.callback) {
+                        job.callback(success, err);
+                    }
+                    
+                    if (printWindow && !printWindow.isDestroyed()) {
+                        printWindow.close();
+                        printWindow = null;
+                    }
+                    
+                    if (success) {
+                        if (job.promiseHandlers) job.promiseHandlers.resolve();
+                        resolve();
+                    } else {
+                        if (job.promiseHandlers) job.promiseHandlers.reject(err);
+                        reject(err);
+                    }
+                });
+            });
+            
+            printWindow.webContents.on('crashed', () => {
+                clearTimeout(windowTimeout);
+                if (printWindow && !printWindow.isDestroyed()) {
+                    printWindow.close();
+                    printWindow = null;
+                }
+                const err = new Error('Print window crashed');
+                if (job.promiseHandlers) job.promiseHandlers.reject(err);
+                reject(err);
             });
         });
+    }
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+}
+
+const posPrintQueue = new PrintQueue();
+
+ipcMain.handle('app:printDual', async (event, { customerContent, kitchenContent, customerPrinter, kitchenPrinter }) => {
+    const results = [];
+    
+    // Print Customer Receipt
+    if (customerContent) {
+        results.push(posPrintQueue.add({
+            content: customerContent,
+            printer: customerPrinter,
+            callback: (success, err) => {
+                if (!success) {
+                    event.sender.send('print-error', { printer: customerPrinter, role: 'customer', error: err });
+                } else {
+                    event.sender.send('print-success', { printer: customerPrinter, role: 'customer' });
+                }
+            }
+        }));
     }
 
     // Print Kitchen Receipt
     if (kitchenContent) {
-        let kitchenWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-        kitchenWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(kitchenContent)}`);
-        kitchenWindow.webContents.on('did-finish-load', () => {
-            const printOptions = { silent: true, printBackground: true };
-            if (kitchenPrinter) printOptions.deviceName = kitchenPrinter;
-            kitchenWindow.webContents.print(printOptions, (success, err) => {
-                if (!success) console.error('Kitchen print failed:', err);
-                kitchenWindow.close();
-            });
-        });
+        results.push(posPrintQueue.add({
+            content: kitchenContent,
+            printer: kitchenPrinter,
+            callback: (success, err) => {
+                if (!success) {
+                    event.sender.send('print-error', { printer: kitchenPrinter, role: 'kitchen', error: err });
+                } else {
+                    event.sender.send('print-success', { printer: kitchenPrinter, role: 'kitchen' });
+                }
+            }
+        }));
     }
+
+    return Promise.all(results);
 });
 
-ipcMain.on('print-single', (event, { content, printer }) => {
+ipcMain.handle('app:printSingle', async (event, { content, printer }) => {
     if (!content) return;
-    let win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
-    win.webContents.on('did-finish-load', () => {
-        const options = { silent: true, printBackground: true };
-        if (printer) options.deviceName = printer;
-        win.webContents.print(options, (success, err) => {
-            if (!success) console.error('Print-single failed:', err);
-            win.close();
-        });
-    });
-});
-
-ipcMain.on('print', (event, content) => {
-
-    let workerWindow = new BrowserWindow({
-        show: false,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+    return posPrintQueue.add({
+        content: content,
+        printer: printer,
+        callback: (success, err) => {
+            if (!success) {
+                event.sender.send('print-error', { printer, error: err });
+            } else {
+                event.sender.send('print-success', { printer });
+            }
         }
     });
-    
-    workerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
-    
-    workerWindow.webContents.on('did-finish-load', () => {
-        // Print 2 copies as requested
-        workerWindow.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
-            if (!success) console.error('Print failed:', failureReason);
-            
-            // Print second copy
-            workerWindow.webContents.print({ silent: true, printBackground: true }, (success2, failureReason2) => {
-                if (!success2) console.error('Second print failed:', failureReason2);
-                workerWindow.close();
-            });
-        });
+});
+
+ipcMain.handle('print', async (event, content) => {
+    if (!content) return;
+    // Route legacy print through the secure queue
+    await posPrintQueue.add({
+        content: content,
+        callback: (success, err) => {
+            if (!success) {
+                console.error('Legacy print failed:', err);
+                event.reply('print-error', { error: err });
+            } else {
+                event.reply('print-success');
+            }
+        }
+    });
+
+    // Handle second copy if it was intended to be "2 copies"
+    // Though usually it's better to manage this in the renderer or as separate jobs.
+    // Given the previous code printed twice:
+    await posPrintQueue.add({
+        content: content,
+        callback: (success, err) => {
+            if (!success) console.error('Second legacy print failed:', err);
+        }
     });
 });
 

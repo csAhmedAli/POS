@@ -167,36 +167,55 @@ async function completeOrder(orderType) {
 
         // Filter Items by category for routing
         const pizzaItems = cart.filter(item => item.category === 'Pizza');
-        const nonPizzaItems = cart.filter(item => ['BBQ', 'Cold Drinks', 'Fast Food'].includes(item.category));
+        const nonPizzaItems = cart.filter(item => item.category !== 'Pizza');
 
         // 1. Print Full Customer slip (Printer 1) + Pizza slip (Printer 2) if exists
         const customerSlip = generateCustomerSlip(tokenNumber, datetime, cart, total, orderType);
         const pizzaSlip = pizzaItems.length > 0 ? generateKitchenSlip(tokenNumber, datetime, pizzaItems, orderType) : null;
 
-        window.api.printDual({
+        console.log('--- Starting Dual Print ---');
+        await window.api.printDual({
             customerContent: customerSlip,
             customerPrinter: customerPrinter,
             kitchenContent: pizzaSlip,
             kitchenPrinter: kitchenPrinter
         });
 
-        // 2. Print Non-Pizza kitchen slip (Printer 1) if items exist
+        // 2. Print Non-Pizza kitchen slip (Printer 1) if non-pizza items exist
         if (nonPizzaItems.length > 0) {
+            console.log('--- Starting Non-Pizza Slip Print ---');
             const nonPizzaSlip = generateKitchenSlip(tokenNumber, datetime, nonPizzaItems, orderType);
-            window.api.printSingle({
+            await window.api.printSingle({
                 content: nonPizzaSlip,
                 printer: customerPrinter
             });
         }
+
+        console.log('--- All Prints Finished ---');
 
         // Reset
         cart = [];
         updateCart();
         alert(`${orderType} Order #${tokenNumber} Completed!`);
     } catch (err) {
-        console.error(err);
-        alert("Error saving order");
+        console.error("Order process error:", err);
+        alert("Error saving order or printing: " + (err.message || err));
     }
+}
+
+// Global Print Listeners
+if (window.api && window.api.onPrintError) {
+    window.api.onPrintError((data) => {
+        console.error('Print error received:', data);
+        // Simple alert for now, can be replaced with a better UI toast
+        alert(`❌ PRINT FAILED!\nPrinter: ${data.printer || 'Unknown'}\nRole: ${data.role || 'N/A'}\nError: ${data.error || 'Check printer connection'}`);
+    });
+}
+
+if (window.api && window.api.onPrintSuccess) {
+    window.api.onPrintSuccess((data) => {
+        console.log('Print success received:', data);
+    });
 }
 
 document.getElementById('btn-dine-in').addEventListener('click', () => completeOrder('Dine-In'));
@@ -208,8 +227,10 @@ function generateCustomerSlip(token, date, items, total, orderType) {
     
     let itemsHtml = items.map(item => `
         <tr style="border-bottom: 1px dashed #eee;">
-            <td style="padding: 5px 0;">${item.product_name} x ${item.quantity}</td>
-            <td style="text-align: right;">Rs ${item.line_total.toFixed(2)}</td>
+            <td style="padding: 5px 0; text-align: left;">${item.product_name}</td>
+            <td style="padding: 5px 0; text-align: center;">${item.quantity}</td>
+            <td style="padding: 5px 0; text-align: center;">${(item.price || item.unit_price || 0).toFixed(2)}</td>
+            <td style="padding: 5px 0; text-align: right;">${item.line_total.toFixed(2)}</td>
         </tr>
     `).join('');
 
@@ -223,8 +244,18 @@ function generateCustomerSlip(token, date, items, total, orderType) {
             </div>
 
             <p style="font-size: 0.8rem; margin-bottom: 10px;">Date: ${date}</p>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
-                ${itemsHtml}
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.9em;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #000;">
+                        <th style="text-align: left; padding-bottom: 3px;">Item</th>
+                        <th style="text-align: center; padding-bottom: 3px;">Qty</th>
+                        <th style="text-align: center; padding-bottom: 3px;">Price</th>
+                        <th style="text-align: right; padding-bottom: 3px;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
             </table>
             <div style="border-top: 2px solid #000; padding-top: 10px; text-align: right;">
                 <div style="font-size: 1.5rem; font-weight: bold;">TOTAL: Rs ${total.toFixed(2)}</div>
